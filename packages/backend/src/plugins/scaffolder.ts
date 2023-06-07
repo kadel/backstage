@@ -18,6 +18,13 @@ import { CatalogClient } from '@backstage/catalog-client';
 import { createRouter } from '@backstage/plugin-scaffolder-backend';
 import { Router } from 'express';
 import type { PluginEnvironment } from '../types';
+import {
+  DefaultGithubCredentialsProvider,
+  GithubCredentialsProvider,
+  ScmIntegrations,
+} from '@backstage/integration';
+import { createCreateGithubOrganizationAction } from './scaffolder/actions/custom';
+import { createBuiltinActions } from '@backstage/plugin-scaffolder-backend';
 
 export default async function createPlugin(
   env: PluginEnvironment,
@@ -25,8 +32,27 @@ export default async function createPlugin(
   const catalogClient = new CatalogClient({
     discoveryApi: env.discovery,
   });
+  const integrations = ScmIntegrations.fromConfig(env.config);
+  const builtInActions = createBuiltinActions({
+    integrations,
+    catalogClient,
+    config: env.config,
+    reader: env.reader,
+  });
+
+  const githubCredentialsProvider: GithubCredentialsProvider =
+    DefaultGithubCredentialsProvider.fromIntegrations(integrations);
+
+  const actions = [
+    ...builtInActions,
+    createCreateGithubOrganizationAction({
+      integrations,
+      githubCredentialsProvider,
+    }),
+  ];
 
   return await createRouter({
+    actions,
     logger: env.logger,
     config: env.config,
     database: env.database,
